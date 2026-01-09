@@ -9,12 +9,15 @@
 
 #include "shaders/ShaderCreator.hpp"
 
+#include "intersections/KDT.hpp"
+
 #include <tuple>
 
 namespace RayTracer
 {
 	using namespace NRenderer;
 	using namespace std;
+	using namespace KDT;
 
 	class RayTracerRenderer
 	{
@@ -28,6 +31,7 @@ namespace RayTracer
 		using SCam = RayTracer::Camera;
 		SCam camera;                // 相机对象
 		vector<SharedShader> shaderPrograms;  // 着色器程序列表
+		SharedKDTree kdtree;            // KD树加速结构
 
 	public:
 		/**

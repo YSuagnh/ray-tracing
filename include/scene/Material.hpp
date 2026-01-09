@@ -106,7 +106,7 @@ namespace NRenderer
         Material() = default;
 
     public:
-        unsigned int type = 0;           // 材质类型
+        unsigned int type = 1;           // 材质类型
         vector<Property> properties;     // 材质属性列表
 
         // 检查是否存在指定键名的属性

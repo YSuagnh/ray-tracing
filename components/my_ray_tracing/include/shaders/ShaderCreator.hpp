@@ -28,13 +28,13 @@ namespace RayTracer
             SharedShader shader{nullptr};
             switch (material.type)
             {
-            case 0:  // Lambertian材质
-                shader = make_shared<Phong>(material, t);
+            case 0:
+                shader = make_shared<Lambertian>(material, t);
                 break;
-			//case 1:  // Phong材质
-   //             shader = make_shared<Phong>(material, t);
-			//	break;
-            default:  // 默认使用Lambertian
+			case 1:
+                shader = make_shared<Phong>(material, t);
+				break;
+            default:
                 shader = make_shared<Lambertian>(material, t);
                 break;
             }

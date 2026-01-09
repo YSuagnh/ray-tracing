@@ -16,8 +16,9 @@ namespace RayTracer
 		};
 		AABB_Box GetAABB(const Triangle& t);
 		AABB_Box GetAABB(const Sphere& s);
-		AABB_Box GetAABB(const Plane& p);
 		AABB_Box GetAABB(const AreaLight& a);
 		AABB_Box SurroundingBox(const AABB_Box& box0, const AABB_Box& box1);
 	}
 }
+
+#endif // __AABB_HPP__

@@ -59,6 +59,8 @@ namespace RayTracer
      * @return 渲染结果（像素数据、宽度、高度）
      */
     auto RayTracerRenderer::render() -> RenderResult {
+		kdtree = make_shared<KDT::KDTree>(scene);
+
         // 初始化着色器程序
         shaderPrograms.clear();
         ShaderCreator shaderCreator{};
@@ -68,6 +70,8 @@ namespace RayTracer
 
         // 分配像素缓冲区
         RGBA* pixels = new RGBA[width * height]{};
+
+
 
         // 将局部坐标转换成世界坐标
         VertexTransformer vertexTransformer{};
@@ -106,23 +110,26 @@ namespace RayTracer
         HitRecord closestHit = nullopt;
         float closest = FLOAT_INF;
 
-        // 检查球体
-        for (auto& s : scene.sphereBuffer) {
-            auto hitRecord = Intersection::xSphere(r, s, 0.000001, closest);
-            if (hitRecord && hitRecord->t < closest) {
-                closest = hitRecord->t;
-                closestHit = hitRecord;
-            }
-        }
+		auto hitRecordKDT = kdtree->intersect(r, 0.000001, closest);
+		if (hitRecordKDT) return hitRecordKDT;
 
-        // 检查三角形
-        for (auto& t : scene.triangleBuffer) {
-            auto hitRecord = Intersection::xTriangle(r, t, 0.000001, closest);
-            if (hitRecord && hitRecord->t < closest) {
-                closest = hitRecord->t;
-                closestHit = hitRecord;
-            }
-        }
+        // 检查球体
+        //for (auto& s : scene.sphereBuffer) {
+        //    auto hitRecord = Intersection::xSphere(r, s, 0.000001, closest);
+        //    if (hitRecord && hitRecord->t < closest) {
+        //        closest = hitRecord->t;
+        //        closestHit = hitRecord;
+        //    }
+        //}
+
+        //// 检查三角形
+        //for (auto& t : scene.triangleBuffer) {
+        //    auto hitRecord = Intersection::xTriangle(r, t, 0.000001, closest);
+        //    if (hitRecord && hitRecord->t < closest) {
+        //        closest = hitRecord->t;
+        //        closestHit = hitRecord;
+        //    }
+        //}
 
         // 检查平面
         for (auto& p : scene.planeBuffer) {

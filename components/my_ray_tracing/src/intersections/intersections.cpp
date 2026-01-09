@@ -90,4 +90,17 @@ namespace RayTracer::Intersection
         }
         return getMissRecord();
     }
+    bool xAABB(const Ray& ray, const AABB::AABB_Box& box, float tMin, float tMax) {
+        for (int a = 0; a < 3; a++) {
+            float invD = 1.0f / ray.direction[a];
+            float t0 = (box.min[a] - ray.origin[a]) * invD;
+            float t1 = (box.max[a] - ray.origin[a]) * invD;
+            if (invD < 0.0f) std::swap(t0, t1);
+            tMin = t0 > tMin ? t0 : tMin;
+            tMax = t1 < tMax ? t1 : tMax;
+            if (tMax <= tMin)
+                return false;
+        }
+        return true;
+	}
 }

@@ -4,6 +4,7 @@
 
 #include "HitRecord.hpp"
 #include "Ray.hpp"
+#include "AABB.hpp"
 #include "scene/Scene.hpp"
 
 namespace RayTracer
@@ -53,6 +54,8 @@ namespace RayTracer
          * @return Ïà½»¼ÇÂ¼
          */
         HitRecord xAreaLight(const Ray& ray, const AreaLight& a, float tMin = 0.f, float tMax = FLOAT_INF);
+
+		bool xAABB(const Ray& ray, const AABB::AABB_Box& box, float tMin = 0.f, float tMax = FLOAT_INF);
     }
 }
 
