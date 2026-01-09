@@ -7,6 +7,7 @@
 #include "UniformSampler.hpp"
 #include "UniformInCircle.hpp"
 #include "UniformInSquare.hpp"
+#include "CosPowerHemisphere.hpp"
 
 namespace RayTracer
 {

@@ -45,72 +45,77 @@ namespace RayTracer
      */
     Scattered Phong::shade(const Ray& ray, const Vec3& hitPoint, const Vec3& normal) const {
         Vec3 origin = hitPoint;
-        Vec3 incomingDirection = glm::normalize(-ray.direction);
-        Vec3 outgoingDirection;
-        Vec3 attenuation;
-        float pdf;
-        
-        // 计算反射方向
-        Vec3 reflectDirection = glm::reflect(-incomingDirection, normal);
-        
-        // 根据材质特性决定散射类型（简化的重要性采样）
+        Vec3 wi = glm::normalize(-ray.direction); // incoming (towards surface)
+
+        // Ideal reflection direction (around which the Phong lobe is defined)
+        Vec3 r = glm::normalize(glm::reflect(-wi, normal));
+
+        Vec3 wo{};
+        Vec3 f{};
+        float pdf = 0.0f;
+
+        // Choose between diffuse/specular by energy (very simple mixture)
         float diffuseWeight = (diffuse.x + diffuse.y + diffuse.z) / 3.0f;
         float specularWeight = (specular.x + specular.y + specular.z) / 3.0f;
         float totalWeight = diffuseWeight + specularWeight;
-        
-        if (totalWeight > 0) {
-            float diffuseProbability = diffuseWeight / totalWeight;
-            
-            // 随机选择漫反射或镜面反射
-            float random = defaultSamplerInstance<UniformSampler>().sample1d();
-            
-            if (random < diffuseProbability) {
-                // 漫反射散射
-                Vec3 randomDirection = defaultSamplerInstance<HemiSphere>().sample3d();
-                Onb onb{normal};
-                outgoingDirection = glm::normalize(onb.local(randomDirection));
-                
-                // Phong模型漫反射分量
-                float cosTheta = glm::max(0.0f, glm::dot(outgoingDirection, normal));
-                attenuation = diffuse * cosTheta / PI;
-                pdf = cosTheta / PI * diffuseProbability;
-            } else {
-                // 镜面反射散射（围绕理想反射方向）
-                Vec3 perturbedReflect = reflectDirection;
-                
-                // 添加轻微扰动以模拟不完全镜面反射
-                if (shininess < 1000.0f) {
-                    Vec3 randomOffset = defaultSamplerInstance<HemiSphere>().sample3d() * (1.0f / shininess);
-                    perturbedReflect = glm::normalize(reflectDirection + randomOffset * 0.1f);
-                    
-                    // 确保方向在正确的半球内
-                    if (glm::dot(perturbedReflect, normal) < 0) {
-                        perturbedReflect = reflectDirection;
-                    }
-                }
-                
-                outgoingDirection = perturbedReflect;
-                
-                // Phong模型镜面反射分量
-                float cosAlpha = glm::max(0.0f, glm::dot(outgoingDirection, reflectDirection));
-                float specularTerm = pow(cosAlpha, shininess);
-                attenuation = specular * specularTerm * (shininess + 2) / (2 * PI);
-                pdf = specularTerm * (shininess + 1) / (2 * PI) * (1.0f - diffuseProbability);
-            }
-        } else {
-            // 备用：纯漫反射
-            Vec3 randomDirection = defaultSamplerInstance<HemiSphere>().sample3d();
-            Onb onb{normal};
-            outgoingDirection = glm::normalize(onb.local(randomDirection));
-            attenuation = Vec3{0.5f, 0.5f, 0.5f};
-            pdf = 1.0f / (2 * PI);
+
+        float pDiffuse = 1.0f;
+        if (totalWeight > 0.0f) pDiffuse = diffuseWeight / totalWeight;
+
+        const float xi = defaultSamplerInstance<UniformSampler>().sample1d();
+        if (xi < pDiffuse) {
+            // Cosine-weighted hemisphere sampling around the surface normal
+            // (current HemiSphere sampler returns z = cos(theta) in [0,1])
+            Vec3 localDir = defaultSamplerInstance<HemiSphere>().sample3d();
+            Onb onb{ normal };
+            wo = glm::normalize(onb.local(localDir));
+
+            const float cosTheta = glm::max(0.0f, glm::dot(normal, wo));
+
+            // Lambert BRDF: f = kd / PI
+            f = diffuse / PI;
+
+            // pdf for cosine-weighted hemisphere
+            const float pdfDiffuse = cosTheta / PI;
+            pdf = pDiffuse * pdfDiffuse;
         }
-        
+        else {
+            // Phong specular lobe importance sampling around reflection direction r
+            // Use CosPowerHemisphere sampler: p(ω) = (n+1)/(2π) * cos^n(θ), where θ is from +Z.
+            const float n = glm::max(0.0f, shininess);
+
+            auto& lobeSampler = defaultSamplerInstance<CosPowerHemisphere>();
+            lobeSampler.setExponent(n);
+
+            // sample in local frame where +Z == r
+            const Vec3 localDir = lobeSampler.sample3d();
+            Onb onb{ r };
+            wo = glm::normalize(onb.local(localDir));
+
+            // Ensure the sampled direction is above the surface
+            if (glm::dot(wo, normal) <= 0.0f) {
+                wo = r;
+            }
+
+            // alphaCos = cos(alpha) between wo and r
+            const float alphaCos = glm::max(0.0f, glm::dot(glm::normalize(r), glm::normalize(wo)));
+
+            // Phong specular BRDF (normalized): f = ks * (n+2)/(2PI) * cos(alpha)^n
+            f = specular * ((n + 2.0f) / (2.0f * PI)) * pow(alphaCos, n);
+
+            // pdf from the sampler (localDir is already in the +Z hemisphere)
+            const float pdfSpec = lobeSampler.pdf(localDir);
+            pdf = (1.0f - pDiffuse) * pdfSpec;
+        }
+
+        // Avoid division by zero / NaNs
+        pdf = glm::max(pdf, 1e-8f);
+
         return {
-            Ray{origin, outgoingDirection},     // 散射光线
-            attenuation,                        // 衰减系数
-            Vec3(0.0f),                           // 发射光（环境光）
-            pdf                                // 概率密度函数值
+            Ray{ origin, wo },
+            f,              // attenuation is treated as BRDF in integrator
+            Vec3(0.0f),
+            pdf
         };
     }
 }

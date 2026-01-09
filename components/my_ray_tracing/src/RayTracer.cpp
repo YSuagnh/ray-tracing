@@ -113,24 +113,6 @@ namespace RayTracer
 		auto hitRecordKDT = kdtree->intersect(r, 0.000001, closest);
 		if (hitRecordKDT) return hitRecordKDT;
 
-        // 检查球体
-        //for (auto& s : scene.sphereBuffer) {
-        //    auto hitRecord = Intersection::xSphere(r, s, 0.000001, closest);
-        //    if (hitRecord && hitRecord->t < closest) {
-        //        closest = hitRecord->t;
-        //        closestHit = hitRecord;
-        //    }
-        //}
-
-        //// 检查三角形
-        //for (auto& t : scene.triangleBuffer) {
-        //    auto hitRecord = Intersection::xTriangle(r, t, 0.000001, closest);
-        //    if (hitRecord && hitRecord->t < closest) {
-        //        closest = hitRecord->t;
-        //        closestHit = hitRecord;
-        //    }
-        //}
-
         // 检查平面
         for (auto& p : scene.planeBuffer) {
             auto hitRecord = Intersection::xPlane(r, p, 0.000001, closest);

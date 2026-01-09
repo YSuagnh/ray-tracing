@@ -29,13 +29,13 @@ namespace RayTracer
             switch (material.type)
             {
             case 0:
-                shader = make_shared<Lambertian>(material, t);
+                shader = make_shared<Phong>(material, t);
                 break;
 			case 1:
                 shader = make_shared<Phong>(material, t);
 				break;
             default:
-                shader = make_shared<Lambertian>(material, t);
+                shader = make_shared<Phong>(material, t);
                 break;
             }
             return shader;
