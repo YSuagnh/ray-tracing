@@ -36,6 +36,7 @@ namespace RayTracer
                 // 变换平面位置
                 auto& v = scene.planeBuffer[node.entity].position;
                 v = t * Vec4{ v, 1 };  // 齐次坐标变换
+				std::cerr << "Plane Position" << v.x << ", " << v.y << ", " << v.z << std::endl;
             }
         }
     }

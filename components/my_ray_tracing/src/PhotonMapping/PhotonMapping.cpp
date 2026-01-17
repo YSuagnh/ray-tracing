@@ -63,8 +63,10 @@ namespace RayTracer
             Onb onb{ ln };
             Vec3 dir = glm::normalize(onb.local(local));
 
-            // Initial photon power (naive): proportional to radiance
-            Vec3 throughput = a.radiance;
+            // Initial photon power: light radiance * light area / total photon count
+            // This ensures energy conservation
+            float lightArea = glm::length(glm::cross(a.u, a.v));
+            Vec3 throughput = a.radiance * lightArea * PI / (float)photonCount;
             Ray ray{ pos + ln * kEps, dir };
 
             for (int bounce = 0; bounce < ctx.maxBounce; ++bounce) {
@@ -104,6 +106,8 @@ namespace RayTracer
 
                 ray = Ray(scattered.ray.origin + glm::normalize(hit->normal) * kEps, scattered.ray.direction);
             }
+            if(i % 100 == 0)
+    			std::cerr << "\rTracing photons: " << (i + 1) << " / " << photonCount << std::flush;
         }
     }
 

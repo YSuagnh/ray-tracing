@@ -59,6 +59,11 @@ namespace RayTracer
      */
     auto RayTracerRenderer::render() -> RenderResult {
         std::cerr << "Render started." << std::endl;
+        
+        // 将局部坐标转换成世界坐标 - 必须在构建KDTree和光子映射之前完成
+        VertexTransformer vertexTransformer{};
+        vertexTransformer.exec(spScene);
+
         kdtree = make_shared<KDT::KDTree>(scene);
 
         // build photon map once per render (optional)
@@ -80,10 +85,6 @@ namespace RayTracer
         RGBA* pixels = new RGBA[width * height]{};
 
 
-
-        // 将局部坐标转换成世界坐标
-        VertexTransformer vertexTransformer{};
-        vertexTransformer.exec(spScene);
 
         // 多线程渲染
         const auto taskNums = 8;  // 使用8个线程
@@ -187,7 +188,7 @@ namespace RayTracer
             // Photon gather once on the first diffuse hit
             if (flag && isDiffuse && photonMapping) {
                 flag = false;
-                float radius = 0.5f;
+                float radius = 0.05f;
                 auto radProp = scene.materials[mtlHandle.index()].getProperty<Property::Wrapper::FloatType>("photonRadius");
                 if (radProp) radius = glm::max(1e-3f, (*radProp).value);
 
@@ -198,8 +199,11 @@ namespace RayTracer
                 int count = 0;
                 for (auto& ph : nearby) {
                     if (!ph) continue;
-                    const Vec3 wi = glm::normalize(ph->ray.direction);
-                    if (glm::dot(hitObject->normal, wi) <= 0.0f) continue;
+                    // ph->ray.direction 存储的是入射光的反方向（即从hit point指向光源）
+                    // 要检查入射光方向与法线的关系，需要取反
+                    const Vec3 wi = -glm::normalize(ph->ray.direction);  // 实际入射方向
+                    // 入射光应该从法线同侧射入（dot > 0 表示错误方向）
+                    if (glm::dot(hitObject->normal, wi) >= 0.0f) continue;
                     flux += ph->power;
                     ++count;
                 }
@@ -233,13 +237,13 @@ namespace RayTracer
             auto next = trace(scattered.ray, currDepth + 1, flag);
             Vec3 path = scattered.emitted + scattered.attenuation * next * (cosTheta / pdf);
 
-            return path + pmIndirect;
+            return pmIndirect + path;
         }
         else if (t != FLOAT_INF) {
             return emitted;
         }
         else {
-            return Vec3{ 0 };
+            return Vec3{ 0.0f };
         }
     }
 }

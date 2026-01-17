@@ -32,7 +32,7 @@ namespace RayTracer
         // 获取环境光颜色
         auto ambientColor = material.getProperty<Property::Wrapper::RGBType>("ambientColor");
         if (ambientColor) ambient = (*ambientColor).value;
-        else ambient = {0.1f, 0.1f, 0.1f};  // 默认低强度环境光
+        else ambient = {0.0f, 0.0f, 0.0f};  // 默认低强度环境光
     }
     
 

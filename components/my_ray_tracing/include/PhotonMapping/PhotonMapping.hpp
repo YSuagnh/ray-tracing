@@ -19,7 +19,7 @@ namespace RayTracer {
 			Tree = std::make_shared<PhotonKDTree>();
 		}
 
-		void build(int k = 1000000);
+		void build(int k = 10000000);
 
 		void find(std::vector<Photon>& ret, glm::vec3 pos) {
 			if (!Tree) return;
