@@ -15,6 +15,10 @@ namespace RayTracer
 
     constexpr float PI = 3.1415926535898f;  // 圆周率常量
 
+    // forward decl
+    class PhotonMapping;
+    using SharedPhotonMapping = std::shared_ptr<PhotonMapping>;
+
     /**
      * 着色器基类
      * 定义材质与光线交互的接口，实现不同的光照模型
@@ -24,7 +28,10 @@ namespace RayTracer
     protected:
         Material& material;              // 材质引用
         vector<Texture>& textureBuffer;  // 纹理缓冲区引用
-        
+
+        // Optional photon mapping data for indirect illumination estimation.
+        SharedPhotonMapping photonMapping{};
+
     public:
         /**
          * 构造函数
@@ -35,7 +42,11 @@ namespace RayTracer
             : material              (material)
             , textureBuffer         (textures)
         {}
-        
+
+        virtual ~Shader() = default;
+
+        void setPhotonMapping(const SharedPhotonMapping& pm) { photonMapping = pm; }
+
         /**
          * 计算光线与材质的交互结果
          * @param ray 入射光线

@@ -11,7 +11,7 @@ namespace RayTracer
 {
     /**
      * Gamma校正函数
-     * 对颜色进行平方根校正，模拟人眼对亮度的感知
+     * 对颜色进行平方格校正，模拟人眼对亮度的感知
      * @param rgb 原始颜色
      * @return 校正后的颜色
      */
@@ -29,18 +29,16 @@ namespace RayTracer
      * @param step 行步长（用于多线程分配）
      */
     void RayTracerRenderer::renderTask(RGBA* pixels, int width, int height, int off, int step) {
-        for (int i = off; i < height; i += step) {  // 按步长处理行
-            for (int j = 0; j < width; j++) {    // 处理每行的像素
-                Vec3 color{ 0, 0, 0 };         // 初始化像素颜色
+        for (int i = off; i < height; i += step) {
+            for (int j = 0; j < width; j++) {
+                Vec3 color{ 0, 0, 0 };
 
                 // 多重采样抗锯齿
                 for (int k = 0; k < samples; k++) {
                     // 在像素内随机采样
                     auto r = defaultSamplerInstance<UniformInSquare>().sample2d();
-                    float rx = r.x;
-                    float ry = r.y;
-                    float x = (float(j) + rx) / float(width);   // 归一化x坐标
-                    float y = (float(i) + ry) / float(height);  // 归一化y坐标
+                    float x = (float(j) + r.x) / float(width);   // 归一化x坐标
+                    float y = (float(i) + r.y) / float(height);  // 归一化y坐标
 
                     // 从相机发射光线
                     auto ray = camera.shoot(x, y);
@@ -50,6 +48,7 @@ namespace RayTracer
                 color = gamma(color);  // Gamma校正
                 pixels[(height - i - 1) * width + j] = { color, 1 };  // 存储像素（翻转y坐标）
             }
+			std::cerr << "Thread " << off << " finished line " << i << std::endl;
         }
     }
 
@@ -59,13 +58,22 @@ namespace RayTracer
      * @return 渲染结果（像素数据、宽度、高度）
      */
     auto RayTracerRenderer::render() -> RenderResult {
-		kdtree = make_shared<KDT::KDTree>(scene);
+        std::cerr << "Render started." << std::endl;
+        kdtree = make_shared<KDT::KDTree>(scene);
 
+        // build photon map once per render (optional)
+        if (photonMapping) {
+            // default photon count can be overridden by scene/materials later
+            photonMapping->build();
+        }
+        std::cerr << "photo map build\n";
         // 初始化着色器程序
         shaderPrograms.clear();
         ShaderCreator shaderCreator{};
         for (auto& m : scene.materials) {
-            shaderPrograms.push_back(shaderCreator.create(m, scene.textures));
+            auto shader = shaderCreator.create(m, scene.textures);
+            if (shader) shader->setPhotonMapping(photonMapping);
+            shaderPrograms.push_back(shader);
         }
 
         // 分配像素缓冲区
@@ -152,43 +160,84 @@ namespace RayTracer
      * @param currDepth 当前递归深度
      * @return 光线颜色
      */
-    RGB RayTracerRenderer::trace(const Ray& r, int currDepth) {
-        // 达到最大递归深度，返回环境光
+    RGB RayTracerRenderer::trace(const Ray& r, int currDepth, bool flag) {
         if (currDepth == depth) return scene.ambient.constant;
 
-        // 查找最近的物体和光源相交
         auto hitObject = closestHitObject(r);
         auto [t, emitted] = closestHitLight(r);
 
-        // 如果光线击中物体
         if (hitObject && hitObject->t < t) {
             auto mtlHandle = hitObject->material;
-            // 使用材质着色器计算散射
-            auto scattered = shaderPrograms[mtlHandle.index()]->shade(r, hitObject->hitPoint, hitObject->normal);
-            auto scatteredRay = scattered.ray;
-            auto attenuation = scattered.attenuation;
-            auto emitted = scattered.emitted;
+            auto shader = shaderPrograms[mtlHandle.index()];
 
-            // 递归追踪散射光线
-            auto next = trace(scatteredRay, currDepth + 1);
-            float n_dot_in = glm::dot(hitObject->normal, scatteredRay.direction);
-            float pdf = scattered.pdf;
+            Vec3 pmIndirect(0.0f);
 
-            /**
-             * 路径追踪渲染方程实现：
-             * emitted      - Le(p, w_0) 自发光
-             * next         - Li(p, w_i) 入射光
-             * n_dot_in     - cos<n, w_i> 余弦项
-             * attenuation  - BRDF 双向反射分布函数
-             * pdf          - p(w) 概率密度函数
-             **/
-            return emitted + attenuation * next * n_dot_in / pdf;
+            int shaderType = 1;
+            bool isDielectric = false;
+            bool isDiffuse = true;
+            {
+                auto st = scene.materials[mtlHandle.index()].getProperty<Property::Wrapper::IntType>("ShaderType");
+                if (st) shaderType = (*st).value;
+                if (shaderType == 3) {
+                    isDiffuse = false;
+                    isDielectric = true;
+                }
+            }
+
+            // Photon gather once on the first diffuse hit
+            if (flag && isDiffuse && photonMapping) {
+                flag = false;
+                float radius = 0.5f;
+                auto radProp = scene.materials[mtlHandle.index()].getProperty<Property::Wrapper::FloatType>("photonRadius");
+                if (radProp) radius = glm::max(1e-3f, (*radProp).value);
+
+                std::vector<Photon> nearby;
+                photonMapping->findInRadius(nearby, hitObject->hitPoint, radius);
+
+                Vec3 flux(0.0f);
+                int count = 0;
+                for (auto& ph : nearby) {
+                    if (!ph) continue;
+                    const Vec3 wi = glm::normalize(ph->ray.direction);
+                    if (glm::dot(hitObject->normal, wi) <= 0.0f) continue;
+                    flux += ph->power;
+                    ++count;
+                }
+
+                if (count > 0) {
+                    const float area = PI * radius * radius;
+                    Vec3 irradiance = flux / glm::max(area, 1e-6f);
+
+                    Vec3 kd(1.0f);
+                    auto diffuseColor = scene.materials[mtlHandle.index()].getProperty<Property::Wrapper::RGBType>("diffuseColor");
+                    if (diffuseColor) kd = (*diffuseColor).value;
+
+                    pmIndirect = irradiance * (kd / PI);
+                    pmIndirect = glm::clamp(pmIndirect, Vec3(0.0f), Vec3(50.0f));
+                }
+            }
+
+            auto scattered = shader->shade(r, hitObject->hitPoint, hitObject->normal);
+
+            // Dielectric is a delta BSDF (reflect/refract).
+            if (isDielectric) {
+                return scattered.emitted + scattered.attenuation * trace(scattered.ray, currDepth + 1, flag);
+            }
+
+            // For non-delta materials, use classic estimator.
+            // Note: for specular lobes (Phong), directions can be valid even when numeric issues
+            // make dot(n, wo) slightly negative; clamp but do NOT early-return black.
+            const float pdf = glm::max(scattered.pdf, 1e-8f);
+            const float cosTheta = glm::max(glm::dot(hitObject->normal, scattered.ray.direction), 0.0f);
+
+            auto next = trace(scattered.ray, currDepth + 1, flag);
+            Vec3 path = scattered.emitted + scattered.attenuation * next * (cosTheta / pdf);
+
+            return path + pmIndirect;
         }
-        // 如果光线击中光源
         else if (t != FLOAT_INF) {
             return emitted;
         }
-        // 光线未击中任何物体
         else {
             return Vec3{ 0 };
         }

@@ -35,6 +35,19 @@ namespace RayTracer
         else ambient = {0.1f, 0.1f, 0.1f};  // 默认低强度环境光
     }
     
+
+    static inline float saturate(float x) {
+        return glm::clamp(x, 0.0f, 1.0f);
+    }
+
+    static inline float fresnelSchlick(float cosTheta, float F0) {
+        cosTheta = saturate(cosTheta);
+        const float m = 1.0f - cosTheta;
+        const float m2 = m * m;
+        const float m5 = m2 * m2 * m;
+        return F0 + (1.0f - F0) * m5;
+    }
+
     /**
      * Phong光照散射计算
      * 结合概率性采样实现Phong BRDF
@@ -47,73 +60,67 @@ namespace RayTracer
         Vec3 origin = hitPoint;
         Vec3 wi = glm::normalize(-ray.direction); // incoming (towards surface)
 
+        Vec3 n = glm::normalize(normal);
+        float cosThetaI = saturate(glm::dot(wi, n));
+
         // Ideal reflection direction (around which the Phong lobe is defined)
-        Vec3 r = glm::normalize(glm::reflect(-wi, normal));
+        Vec3 r = glm::normalize(glm::reflect(-wi, n));
 
         Vec3 wo{};
         Vec3 f{};
         float pdf = 0.0f;
 
-        // Choose between diffuse/specular by energy (very simple mixture)
-        float diffuseWeight = (diffuse.x + diffuse.y + diffuse.z) / 3.0f;
-        float specularWeight = (specular.x + specular.y + specular.z) / 3.0f;
-        float totalWeight = diffuseWeight + specularWeight;
-
-        float pDiffuse = 1.0f;
-        if (totalWeight > 0.0f) pDiffuse = diffuseWeight / totalWeight;
+        // Fresnel-based mixing:
+        // Use average specular as F0 (in [0,1]) and Schlick to get Fr.
+        const float F0 = saturate((specular.x + specular.y + specular.z) / 3.0f);
+        const float Fr = fresnelSchlick(cosThetaI, F0);
+        const float pSpecular = glm::clamp(Fr, 0.0f, 1.0f);
+        const float pDiffuse = 1.0f - pSpecular;
 
         const float xi = defaultSamplerInstance<UniformSampler>().sample1d();
         if (xi < pDiffuse) {
-            // Cosine-weighted hemisphere sampling around the surface normal
-            // (current HemiSphere sampler returns z = cos(theta) in [0,1])
+            // Diffuse: cosine-weighted hemisphere sampling around the surface normal
             Vec3 localDir = defaultSamplerInstance<HemiSphere>().sample3d();
-            Onb onb{ normal };
+            Onb onb{ n };
             wo = glm::normalize(onb.local(localDir));
 
-            const float cosTheta = glm::max(0.0f, glm::dot(normal, wo));
+            const float cosTheta = glm::max(0.0f, glm::dot(n, wo));
 
-            // Lambert BRDF: f = kd / PI
+            // Lambert BRDF
             f = diffuse / PI;
 
-            // pdf for cosine-weighted hemisphere
+            // mixture pdf
             const float pdfDiffuse = cosTheta / PI;
             pdf = pDiffuse * pdfDiffuse;
         }
         else {
-            // Phong specular lobe importance sampling around reflection direction r
-            // Use CosPowerHemisphere sampler: p(ω) = (n+1)/(2π) * cos^n(θ), where θ is from +Z.
-            const float n = glm::max(0.0f, shininess);
+            // Specular: Phong lobe importance sampling around reflection direction r
+            const float expN = glm::max(0.0f, shininess);
 
             auto& lobeSampler = defaultSamplerInstance<CosPowerHemisphere>();
-            lobeSampler.setExponent(n);
+            lobeSampler.setExponent(expN);
 
-            // sample in local frame where +Z == r
             const Vec3 localDir = lobeSampler.sample3d();
             Onb onb{ r };
             wo = glm::normalize(onb.local(localDir));
 
-            // Ensure the sampled direction is above the surface
-            if (glm::dot(wo, normal) <= 0.0f) {
-                wo = r;
-            }
+            // Ensure above surface
+            if (glm::dot(wo, n) <= 0.0f) wo = r;
 
-            // alphaCos = cos(alpha) between wo and r
             const float alphaCos = glm::max(0.0f, glm::dot(glm::normalize(r), glm::normalize(wo)));
 
-            // Phong specular BRDF (normalized): f = ks * (n+2)/(2PI) * cos(alpha)^n
-            f = specular * ((n + 2.0f) / (2.0f * PI)) * pow(alphaCos, n);
+            // Normalized Phong specular BRDF
+            f = specular * ((expN + 2.0f) / (2.0f * PI)) * pow(alphaCos, expN);
 
-            // pdf from the sampler (localDir is already in the +Z hemisphere)
             const float pdfSpec = lobeSampler.pdf(localDir);
-            pdf = (1.0f - pDiffuse) * pdfSpec;
+            pdf = pSpecular * pdfSpec;
         }
 
-        // Avoid division by zero / NaNs
         pdf = glm::max(pdf, 1e-8f);
 
         return {
             Ray{ origin, wo },
-            f,              // attenuation is treated as BRDF in integrator
+            f,
             Vec3(0.0f),
             pdf
         };

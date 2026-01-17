@@ -10,6 +10,7 @@
 #include "shaders/ShaderCreator.hpp"
 
 #include "intersections/KDT.hpp"
+#include "PhotonMapping/PhotonMapping.hpp"
 
 #include <tuple>
 
@@ -33,6 +34,9 @@ namespace RayTracer
 		vector<SharedShader> shaderPrograms;  // 着色器程序列表
 		SharedKDTree kdtree;            // KD树加速结构
 
+		// Photon mapping (optional)
+		SharedPhotonMapping photonMapping;
+
 	public:
 		/**
 		 * 构造函数
@@ -47,6 +51,8 @@ namespace RayTracer
 			height = scene.renderOption.height;
 			depth = scene.renderOption.depth;
 			samples = scene.renderOption.samplesPerPixel;
+
+			photonMapping = std::make_shared<PhotonMapping>(spScene);
 		}
 		~RayTracerRenderer() = default;
 		using RenderResult = tuple<RGBA*, unsigned int, unsigned int>;  // 渲染结果类型
@@ -77,7 +83,7 @@ namespace RayTracer
 		 * @param currDepth 当前递归深度
 		 * @return 光线颜色
 		 */
-		RGB trace(const Ray& ray, int currDepth);
+		RGB trace(const Ray& ray, int currDepth, bool flag = true);
 		
 		/**
 		 * 查找最近相交的物体
