@@ -34,7 +34,6 @@ namespace RayTracer
 		vector<SharedShader> shaderPrograms;  // 着色器程序列表
 		SharedKDTree kdtree;            // KD树加速结构
 
-		// Photon mapping (optional)
 		SharedPhotonMapping photonMapping;
 
 	public:
@@ -51,8 +50,6 @@ namespace RayTracer
 			height = scene.renderOption.height;
 			depth = scene.renderOption.depth;
 			samples = scene.renderOption.samplesPerPixel;
-
-			photonMapping = std::make_shared<PhotonMapping>(spScene);
 		}
 		~RayTracerRenderer() = default;
 		using RenderResult = tuple<RGBA*, unsigned int, unsigned int>;  // 渲染结果类型

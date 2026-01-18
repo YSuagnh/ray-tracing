@@ -29,9 +29,6 @@ namespace RayTracer
         Material& material;              // 材质引用
         vector<Texture>& textureBuffer;  // 纹理缓冲区引用
 
-        // Optional photon mapping data for indirect illumination estimation.
-        SharedPhotonMapping photonMapping{};
-
     public:
         /**
          * 构造函数
@@ -44,8 +41,6 @@ namespace RayTracer
         {}
 
         virtual ~Shader() = default;
-
-        void setPhotonMapping(const SharedPhotonMapping& pm) { photonMapping = pm; }
 
         /**
          * 计算光线与材质的交互结果

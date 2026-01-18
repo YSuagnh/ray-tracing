@@ -2,9 +2,6 @@
 
 #include "samplers/SamplerInstance.hpp"
 #include "Onb.hpp"
-#include "intersections/intersections.hpp"
-#include "intersections/KDT.hpp"
-#include "shaders/ShaderCreator.hpp"
 
 #include <thread>
 
@@ -78,12 +75,10 @@ namespace RayTracer
                 if (midx >= ctx.shaders->size()) break;
 
                 // Store only on diffuse hits.
-                bool isDiffuse = true;
+                bool isDiffuse = false;
                 {
-                    int shaderType = 1;
-                    auto st = ctx.scene.materials[midx].getProperty<Property::Wrapper::IntType>("ShaderType");
-                    if (st) shaderType = (*st).value;
-                    if (shaderType == 3) isDiffuse = false; // Dielectric
+                    auto id = ctx.scene.materials[midx].getProperty<Property::Wrapper::IntType>("isDiffuse");
+                    if (id) isDiffuse = (*id).value;
                 }
 
                 if (isDiffuse) {
@@ -127,18 +122,7 @@ namespace RayTracer
             return;
         }
 
-        // Build KDTree once for fast photon tracing intersections.
-        auto kdtree = std::make_shared<KDT::KDTree>(scene);
-
-        // Build shaders once for throughput update
-        std::vector<SharedShader> shaders;
-        shaders.reserve(scene.materials.size());
-        ShaderCreator shaderCreator{};
-        for (auto& m : scene.materials) {
-            shaders.push_back(shaderCreator.create(m, scene.textures));
-        }
-
-        PhotonBuildContext ctx{ scene, lights, kdtree, (int)glm::max(1u, scene.renderOption.depth), &shaders };
+        PhotonBuildContext ctx{ scene, lights, kdtree, (int)glm::max(1u, scene.renderOption.depth), shaders };
 
         const int taskNums = 8;
         std::thread threads[taskNums];

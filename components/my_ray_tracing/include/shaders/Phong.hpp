@@ -14,10 +14,11 @@ namespace RayTracer
     class Phong : public Shader
     {
     private:
-        Vec3 diffuse;           // 漫反射颜色
-        Vec3 specular;          // 镜面反射颜色
-        float shininess;        // 高光指数（光泽度）
-        Vec3 ambient;           // 环境光颜色
+        Vec3 diffuse{1.0f};           // 漫反射颜色
+        Vec3 specular{0.05f};         // 镜面反射颜色
+        Vec3 f0{0.04f};               // Fresnel F0: normal-incidence reflectance
+        float shininess{10.0f};       // 高光指数（光泽度）
+        Vec3 ambient{0.1f};           // 环境光颜色
         
     public:
         /**

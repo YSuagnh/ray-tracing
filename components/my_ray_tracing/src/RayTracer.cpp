@@ -66,6 +66,14 @@ namespace RayTracer
 
         kdtree = make_shared<KDT::KDTree>(scene);
 
+        shaderPrograms.clear();
+        ShaderCreator shaderCreator{};
+        for (auto& m : scene.materials) {
+            auto shader = shaderCreator.create(m, scene.textures);
+            shaderPrograms.push_back(shader);
+        }
+
+		photonMapping = make_shared<PhotonMapping>(spScene, &shaderPrograms, kdtree);
         // build photon map once per render (optional)
         if (photonMapping) {
             // default photon count can be overridden by scene/materials later
@@ -73,13 +81,6 @@ namespace RayTracer
         }
         std::cerr << "photo map build\n";
         // 初始化着色器程序
-        shaderPrograms.clear();
-        ShaderCreator shaderCreator{};
-        for (auto& m : scene.materials) {
-            auto shader = shaderCreator.create(m, scene.textures);
-            if (shader) shader->setPhotonMapping(photonMapping);
-            shaderPrograms.push_back(shader);
-        }
 
         // 分配像素缓冲区
         RGBA* pixels = new RGBA[width * height]{};
@@ -175,14 +176,15 @@ namespace RayTracer
 
             int shaderType = 1;
             bool isDielectric = false;
-            bool isDiffuse = true;
+            bool isDiffuse = false;
             {
                 auto st = scene.materials[mtlHandle.index()].getProperty<Property::Wrapper::IntType>("ShaderType");
                 if (st) shaderType = (*st).value;
                 if (shaderType == 3) {
-                    isDiffuse = false;
                     isDielectric = true;
                 }
+                auto id = scene.materials[mtlHandle.index()].getProperty<Property::Wrapper::IntType>("isDiffuse");
+                if (id) isDiffuse = (*id).value;
             }
 
             // Photon gather once on the first diffuse hit

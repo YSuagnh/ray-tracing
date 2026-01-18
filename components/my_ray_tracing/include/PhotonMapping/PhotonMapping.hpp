@@ -4,6 +4,8 @@
 #include "Photon.hpp"
 #include "PhotonKDTree.hpp"
 #include "scene/Scene.hpp"
+#include "intersections/KDT.hpp"
+#include "shaders/ShaderCreator.hpp"
 #include <optional>
 #include <vector>
 
@@ -14,8 +16,13 @@ namespace RayTracer {
 		SharedScene spScene;
 		Scene& scene;
 		std::vector<AreaLight>* Light;
+		std::vector<SharedShader>* shaders;
+		std::shared_ptr<KDT::KDTree> kdtree;
 	public :
-		PhotonMapping(SharedScene sp) : spScene(sp), scene(*sp), Light(&(sp->areaLightBuffer)){
+		PhotonMapping(SharedScene sp, std::vector<SharedShader>* sh, std::shared_ptr<KDT::KDTree> kdt) :
+			spScene(sp), scene(*sp), Light(&(sp->areaLightBuffer))
+			, shaders(sh), kdtree(kdt)
+		{
 			Tree = std::make_shared<PhotonKDTree>();
 		}
 
