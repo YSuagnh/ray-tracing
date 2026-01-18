@@ -1,0 +1,45 @@
+Begin Material
+
+Material White
+
+Prop diffuseColor RGB 0.725 0.71 0.68
+
+Material Glass 3
+
+Prop absorbed RGB 1 1 1 
+Prop ior Float 1.5
+Prop ShaderType Int 3
+
+Material Steel 5
+
+Prop diffuseColor RGB 0.2 0.2 0.2
+Prop specularColor RGB 0.9 0.9 0.9
+Prop shininess Float 128
+Prop ambientColor RGB 0.05 0.05 0.05
+Prop F0 Float 0.99
+
+End
+
+Begin Model
+
+Model Sphere
+Translation -100 0 800
+
+Sphere Sphere Glass
+N 0 0 1
+P 0 0 0
+R 50
+
+End
+
+Begin Model
+
+Model Sphere
+Translation 100 0 800
+
+Sphere Sphere Glass
+N 0 0 1
+P 0 0 0
+R 50
+
+End
